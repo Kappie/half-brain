@@ -1,6 +1,7 @@
 import SimpleITK as sitk
 import math
 import os
+import numpy as np
 
 #============ FOR CTA ============
 # Radius (in mm) of biggest hole in the skull after the foramen magnum.
@@ -17,10 +18,30 @@ MIN_SKULL_HU_VALUE = 160
 MAX_BRAIN_HU_VALUE = 140
 MIN_BRAIN_HU_VALUE = -20
 
+INPUT_FOLDER = "D:\Geert\SOFT_TISSUE_THICK_REGISTERED"
+INPUT_FILE = os.path.join(INPUT_FOLDER, "soft_tissue_thick_registered.txt")
+OUTPUT_FOLDER = "D:\Geert\SOFT_TISSUE_THICK_SKULL_STRIPPED"
 
-INPUT_FOLDER = "NCCT_H31S_REGISTERED"
-INPUT_FILE = os.path.join(INPUT_FOLDER, "ncct_h31s_registered.txt")
-OUTPUT_FOLDER = "NCCT_H31S_SKULL_STRIPPED"
+already_processed_scans = os.listdir(OUTPUT_FOLDER)
+
+
+def crop(image):
+    """
+    Crops zero padding after brain mask has been applied.
+    """
+    image_array = sitk.GetArrayFromImage(image)
+    if np.all(image_array == 0):
+        return []
+
+    for i in range(image_array.ndim):
+        image_array = np.swapaxes(image_array, 0, i)  # send i-th axis to front
+        while np.all(image_array[0] == 0):
+            image_array = image_array[1:]
+        while np.all(image_array[-1] == 0):
+            image_array = image_array[:-1]
+        image_array = np.swapaxes(image_array, 0, i)  # send i-th axis to its original position
+    return sitk.GetImageFromArray(image_array)
+
 
 if not os.path.exists(OUTPUT_FOLDER):
     os.makedirs(OUTPUT_FOLDER)
@@ -29,7 +50,9 @@ with open(INPUT_FILE) as input_file:
     for line in input_file:
 
         new_line = line.replace("\n", "")
-        #new_line = "E:\FU CT\Ha5065\convertedSeries.mha"
+        if new_line in already_processed_scans:
+            print("skipping {}, already exists in output folder.".format(new_line))
+            continue
 
         print("Start processing {0}.".format(new_line))
 
@@ -201,12 +224,14 @@ with open(INPUT_FILE) as input_file:
 
         # aux_image = sitk.Cast(aux_image, sitk.sitkUInt8)
         aux_image = sitk.Cast(aux_image, sitk.sitkInt16)
-        # multiply by mask to get skull stripped image
-        skull_stripped_image = aux_image * input_image
-
-        # Save final result
-        # sitk.WriteImage(aux_image, new_line.replace("CTScan", "BrainMask"))
-        sitk.WriteImage(skull_stripped_image, os.path.join(OUTPUT_FOLDER, new_line))
+        # multiply by mask to get skull stripped image and crop
+        import pdb; pdb.set_trace()
+        skull_stripped_image = crop(aux_image * input_image)
 
 
-        print("File {0} processed".format(line))
+        if skull_stripped_image:
+            # Save final result
+            sitk.WriteImage(skull_stripped_image, os.path.join(OUTPUT_FOLDER, new_line))
+            print("File {0} processed".format(new_line))
+        else:
+            print("{} couldn't be processed: the mask gave all zeroes.".format(new_line))

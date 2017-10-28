@@ -12,4 +12,5 @@ for dirpath, subdirs, files in os.walk(INPUT_FOLDER):
             number += 1
             full_path = os.path.join(dirpath, file)
             destination = os.path.join(OUTPUT_FOLDER, "scan_{}".format(number) + ".mha")
-            shutil.copyfile(full_path, destination)
+            print("full path: {} is now called scan_{}".format(full_path, number))
+            # shutil.copyfile(full_path, destination)
